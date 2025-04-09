@@ -1,18 +1,21 @@
+import os
 import json
 import pandas as pd
-import os
 import re
 from datetime import datetime
-from telegram import Update, InputFile
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from flask import Flask, request
+from telegram import Update, InputFile, Bot
+from telegram.ext import Application, MessageHandler, filters, ContextTypes, CommandHandler
 
-BOT_TOKEN = "7796924221:AAHmGXuwCcvUg0175GyRMQZhTlqmncILbNM"
+# --- Config ---
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+BOT = Bot(token=BOT_TOKEN)
+app = Flask(__name__)
 
-# Bulgarian welcome and instructions
+# --- Bot Logic ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Здравей! Моля, изпрати *json* файл – Telegram чат експорт.")
 
-# Extract EAN, Name, Date, Hour
 def extract_data(messages):
     rows = []
     last_date = ""
@@ -29,11 +32,7 @@ def extract_data(messages):
             continue
 
         text = text.replace("\n", " ")
-        print("------- MESSAGE -------")
-        print(text)
-
         matches = re.findall(r"\b(\d{13})\b\s+(.*?)\s+\((L|M|U)\)", text)
-        print("Matches:", matches)
 
         date_full = msg.get("date")
         if date_full:
@@ -55,7 +54,6 @@ def extract_data(messages):
     df.drop_duplicates(inplace=True)
     return df
 
-# Handle .json file
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await update.message.document.get_file()
     filename = f"{file.file_id}.json"
@@ -69,38 +67,43 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         messages = data.get("messages", [])
         df = extract_data(messages)
 
-        print(f"FINAL ROW COUNT: {len(df)}")
-        print("DATAFRAME PREVIEW:")
-        print(df.head())
-
         if df.empty:
             await update.message.reply_text("❌ Не са открити ЕАН кодове.")
             return
 
-        # Save CSV to disk
         today_str = datetime.today().strftime("%Y-%m-%d")
         export_name = f"Export-chats-Telegram_{today_str}.csv"
         df.to_csv(export_name, index=False, encoding="utf-8-sig")
 
-        # Ensure the file is flushed and re-opened cleanly
         with open(export_name, "rb") as f:
             await update.message.reply_document(InputFile(f, filename=export_name))
 
     except Exception as e:
         await update.message.reply_text(f"⚠️ Възникна грешка: {str(e)}")
-
     finally:
-        # Don't delete too quickly
-        import time
-        time.sleep(5)
         if os.path.exists(filename):
             os.remove(filename)
         if export_name and os.path.exists(export_name):
             os.remove(export_name)
 
+# --- Telegram Application Setup ---
+application = Application.builder().token(BOT_TOKEN).build()
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^здравей$"), start))
+application.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
 
-# App setup
-app = ApplicationBuilder().token(BOT_TOKEN).build()
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^здравей$"), start))
-app.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
-app.run_polling()
+# --- Webhook Endpoint ---
+@app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
+def telegram_webhook():
+    update = Update.de_json(request.get_json(force=True), BOT)
+    application.update_queue.put_nowait(update)
+    return "ok"
+
+# --- Health Check (optional) ---
+@app.route("/")
+def index():
+    return "Bot is running!"
+
+# --- Start Flask app ---
+if __name__ == '__main__':
+    app.run(port=10000)
