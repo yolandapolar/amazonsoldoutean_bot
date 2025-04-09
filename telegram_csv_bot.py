@@ -98,19 +98,22 @@ application.add_handler(MessageHandler(filters.Document.MimeType("application/js
 def telegram_webhook():
     update = Update.de_json(request.get_json(force=True), BOT)
 
-    async def process_update():
-        if not application.running:
-            await application.initialize()
-        await application.process_update(update)
+    # This schedules the update to be handled without closing the event loop
+    asyncio.get_event_loop().create_task(application.process_update(update))
 
-    asyncio.run(process_update())
     return "ok"
 
-# --- Health Check (optional) ---
+# --- Health Check ---
 @app.route("/")
 def index():
     return "Bot is running!"
 
-# --- Local Testing Support ---
+# --- Initialization ---
+@app.before_first_request
+def activate_bot():
+    if not application.running:
+        asyncio.get_event_loop().create_task(application.initialize())
+
+# --- Run locally if needed ---
 if __name__ == "__main__":
     app.run(port=10000)
