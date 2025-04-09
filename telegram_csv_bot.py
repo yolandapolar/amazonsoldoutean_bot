@@ -11,13 +11,16 @@ from telegram.ext import Application, MessageHandler, filters, ContextTypes, Com
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 BOT = Bot(token=BOT_TOKEN)
 app = Flask(__name__)
-@app.route(f'/webhook/{BOT_TOKEN}', methods=['POST'])
+@app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), BOT)
     application = Application.builder().token(BOT_TOKEN).build()
-    application.initialize()
-    application.process_update(update)
-    return 'OK'
+    
+    import asyncio
+    asyncio.run(application.initialize())
+    asyncio.run(application.process_update(update))
+    
+    return "OK"
 
 # --- Bot Logic ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
