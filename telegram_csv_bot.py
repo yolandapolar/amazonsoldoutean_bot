@@ -14,6 +14,9 @@ BOT = Bot(token=BOT_TOKEN)
 app = Flask(__name__)
 application = Application.builder().token(BOT_TOKEN).build()
 
+# Flag to ensure we only initialize once
+application_initialized = False
+
 # --- Bot Logic ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Здравей! Моля, изпрати *json* файл – Telegram чат експорт.")
@@ -96,11 +99,15 @@ application.add_handler(MessageHandler(filters.Document.MimeType("application/js
 # --- Webhook Endpoint ---
 @app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
 def telegram_webhook():
+    global application_initialized
+
+    # Initialize only once
+    if not application_initialized:
+        asyncio.get_event_loop().create_task(application.initialize())
+        application_initialized = True
+
     update = Update.de_json(request.get_json(force=True), BOT)
-
-    # This schedules the update to be handled without closing the event loop
     asyncio.get_event_loop().create_task(application.process_update(update))
-
     return "ok"
 
 # --- Health Check ---
@@ -108,12 +115,6 @@ def telegram_webhook():
 def index():
     return "Bot is running!"
 
-# --- Initialization ---
-@app.before_first_request
-def activate_bot():
-    if not application.running:
-        asyncio.get_event_loop().create_task(application.initialize())
-
-# --- Run locally if needed ---
+# --- Local Testing ---
 if __name__ == "__main__":
     app.run(port=10000)
