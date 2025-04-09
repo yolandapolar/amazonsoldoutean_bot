@@ -6,21 +6,13 @@ from datetime import datetime
 from flask import Flask, request
 from telegram import Update, InputFile, Bot
 from telegram.ext import Application, MessageHandler, filters, ContextTypes, CommandHandler
+import asyncio
 
 # --- Config ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 BOT = Bot(token=BOT_TOKEN)
 app = Flask(__name__)
-@app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), BOT)
-    application = Application.builder().token(BOT_TOKEN).build()
-    
-    import asyncio
-    asyncio.run(application.initialize())
-    asyncio.run(application.process_update(update))
-    
-    return "OK"
+application = Application.builder().token(BOT_TOKEN).build()
 
 # --- Bot Logic ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -96,8 +88,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if export_name and os.path.exists(export_name):
             os.remove(export_name)
 
-# --- Telegram Application Setup ---
-application = Application.builder().token(BOT_TOKEN).build()
+# --- Register Handlers ---
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^здравей$"), start))
 application.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
@@ -106,7 +97,13 @@ application.add_handler(MessageHandler(filters.Document.MimeType("application/js
 @app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
 def telegram_webhook():
     update = Update.de_json(request.get_json(force=True), BOT)
-    application.update_queue.put_nowait(update)
+
+    async def process_update():
+        if not application.running:
+            await application.initialize()
+        await application.process_update(update)
+
+    asyncio.run(process_update())
     return "ok"
 
 # --- Health Check (optional) ---
@@ -114,6 +111,6 @@ def telegram_webhook():
 def index():
     return "Bot is running!"
 
-# --- Start Flask app ---
-if __name__ == '__main__':
+# --- Local Testing Support ---
+if __name__ == "__main__":
     app.run(port=10000)
