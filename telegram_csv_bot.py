@@ -1,23 +1,24 @@
 import os
 import json
-import pandas as pd
 import re
+import pandas as pd
 from datetime import datetime
 from flask import Flask, request
 from telegram import Update, InputFile, Bot
-from telegram.ext import Application, MessageHandler, filters, ContextTypes, CommandHandler
-import asyncio
+from telegram.ext import (
+    Application, 
+    CommandHandler, 
+    MessageHandler, 
+    ContextTypes, 
+    filters
+)
 
-# --- Config ---
+# === Config ===
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 BOT = Bot(token=BOT_TOKEN)
 app = Flask(__name__)
-application = Application.builder().token(BOT_TOKEN).build()
 
-# Flag to ensure we only initialize once
-application_initialized = False
-
-# --- Bot Logic ---
+# === Bot Logic ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Здравей! Моля, изпрати *json* файл – Telegram чат експорт.")
 
@@ -91,30 +92,24 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if export_name and os.path.exists(export_name):
             os.remove(export_name)
 
-# --- Register Handlers ---
+# === Application (run once) ===
+application = Application.builder().token(BOT_TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^здравей$"), start))
 application.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
 
-# --- Webhook Endpoint ---
+# === Webhook Endpoint ===
 @app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
-def telegram_webhook():
-    global application_initialized
-
-    # Initialize only once
-    if not application_initialized:
-        asyncio.get_event_loop().create_task(application.initialize())
-        application_initialized = True
-
+def webhook():
     update = Update.de_json(request.get_json(force=True), BOT)
-    asyncio.get_event_loop().create_task(application.process_update(update))
-    return "ok"
+    application.update_queue.put_nowait(update)
+    return "OK"
 
-# --- Health Check ---
+# === Health Check ===
 @app.route("/")
 def index():
     return "Bot is running!"
 
-# --- Local Testing ---
-if __name__ == "__main__":
+# === Flask Launch ===
+if __name__ == '__main__':
     app.run(port=10000)
