@@ -10,9 +10,11 @@ from telegram.ext import Application, MessageHandler, filters, ContextTypes, Com
 # --- Config ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 BOT = Bot(token=BOT_TOKEN)
+
+# --- Flask App ---
 app = Flask(__name__)
 
-# --- Telegram App Setup ---
+# --- Telegram Application (Initialized Once!) ---
 application = Application.builder().token(BOT_TOKEN).build()
 
 
@@ -93,6 +95,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
             os.remove(export_name)
 
 
+# --- Register Handlers ---
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^здравей$"), start))
 application.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
@@ -100,22 +103,19 @@ application.add_handler(MessageHandler(filters.Document.MimeType("application/js
 
 # --- Webhook Endpoint ---
 @app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
-async def webhook():
+async def telegram_webhook():
     update = Update.de_json(request.get_json(force=True), BOT)
+    await application.initialize()  # Important!
     await application.process_update(update)
-    return "OK"
+    return "ok"
 
 
-# --- Health check ---
+# --- Health Check Endpoint ---
 @app.route("/")
 def index():
-    return "Bot is up!"
+    return "Bot is running!"
 
 
-# --- Start Flask ---
-if __name__ == '__main__':
-    import asyncio
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    app.run(host="0.0.0.0", port=10000)
+# --- Start Flask App ---
+if __name__ == "__main__":
+    app.run(port=10000)
