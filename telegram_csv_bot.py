@@ -1,30 +1,25 @@
 import os
 import json
-import re
 import pandas as pd
+import re
 from datetime import datetime
 from flask import Flask, request
 from telegram import Update, InputFile, Bot
-from telegram.ext import (
-    Application, 
-    CommandHandler, 
-    MessageHandler, 
-    ContextTypes, 
-    filters
-)
-import asyncio
+from telegram.ext import Application, MessageHandler, filters, ContextTypes, CommandHandler
 
-# === Config ===
+# --- Config ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 BOT = Bot(token=BOT_TOKEN)
 app = Flask(__name__)
 
-# === Global App Init ===
+# --- Telegram App Setup ---
 application = Application.builder().token(BOT_TOKEN).build()
 
-# === Bot Logic ===
+
+# --- Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Здравей! Моля, изпрати *json* файл – Telegram чат експорт.")
+
 
 def extract_data(messages):
     rows = []
@@ -64,6 +59,7 @@ def extract_data(messages):
     df.drop_duplicates(inplace=True)
     return df
 
+
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await update.message.document.get_file()
     filename = f"{file.file_id}.json"
@@ -96,24 +92,30 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if export_name and os.path.exists(export_name):
             os.remove(export_name)
 
-# === Register Handlers ===
+
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^здравей$"), start))
 application.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
 
-# === Webhook Route ===
+
+# --- Webhook Endpoint ---
 @app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
-def webhook():
+async def webhook():
     update = Update.de_json(request.get_json(force=True), BOT)
-    asyncio.get_event_loop().create_task(application.process_update(update))
+    await application.process_update(update)
     return "OK"
 
-# === Health Check ===
+
+# --- Health check ---
 @app.route("/")
 def index():
-    return "Bot is running!"
+    return "Bot is up!"
 
-# === Launch Locally ===
+
+# --- Start Flask ---
 if __name__ == '__main__':
-    asyncio.run(application.initialize())
-    app.run(port=10000)
+    import asyncio
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    app.run(host="0.0.0.0", port=10000)
