@@ -1,6 +1,6 @@
 gunicorn==23.0.0
-gevent==23.9.1
+uvicorn==0.34.0
 python-telegram-bot==20.3
 httpx==0.24.1
-flask[async]==3.1.0
+flask[async]==3.1.0  # still here because PTB internally may use parts
 pandas
