@@ -2,20 +2,26 @@ import os
 import json
 import pandas as pd
 import re
+import asyncio
 from datetime import datetime
 from flask import Flask, request
 from telegram import Update, InputFile, Bot
 from telegram.ext import Application, MessageHandler, filters, ContextTypes, CommandHandler
+from telegram.request import HTTPXRequest
 
 # --- Config ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 BOT = Bot(token=BOT_TOKEN)
 
+# --- Telegram App ---
+request_con = HTTPXRequest(pool_limits=40)  # boost connection pool
+application = Application.builder().token(BOT_TOKEN).request(request_con).build()
+
+# Flag to initialize the application only once
+initialized = False
+
 # --- Flask App ---
 app = Flask(__name__)
-
-# --- Telegram Application (Initialized Once!) ---
-application = Application.builder().token(BOT_TOKEN).build()
 
 
 # --- Handlers ---
@@ -103,10 +109,19 @@ application.add_handler(MessageHandler(filters.Document.MimeType("application/js
 
 # --- Webhook Endpoint ---
 @app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
-async def telegram_webhook():
-    update = Update.de_json(request.get_json(force=True), BOT)
-    await application.initialize()  # Important!
-    await application.process_update(update)
+def telegram_webhook():
+    global initialized
+    json_data = request.get_json(force=True)
+    update = Update.de_json(json_data, BOT)
+
+    async def process():
+        nonlocal initialized
+        if not initialized:
+            await application.initialize()
+            initialized = True
+        await application.process_update(update)
+
+    asyncio.run(process())
     return "ok"
 
 
