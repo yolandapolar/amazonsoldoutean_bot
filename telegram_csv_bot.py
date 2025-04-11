@@ -3,6 +3,7 @@ import json
 import pandas as pd
 import re
 import asyncio  # ← this is critical for event loop management
+import threading
 from datetime import datetime
 from flask import Flask, request
 from telegram import Update, InputFile, Bot
@@ -17,9 +18,6 @@ BOT = Bot(token=BOT_TOKEN)
 request_con = HTTPXRequest()
 application = Application.builder().token(BOT_TOKEN).request(request_con).build()
 
-# Flag to initialize the application only once
-initialized = False
-
 # --- Flask App ---
 app = Flask(__name__)
 
@@ -27,7 +25,6 @@ app = Flask(__name__)
 # --- Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Здравей! Моля, изпрати *json* файл – Telegram чат експорт.")
-
 
 def extract_data(messages):
     rows = []
@@ -114,20 +111,17 @@ def telegram_webhook():
     update = Update.de_json(json_data, BOT)
 
     async def process_update():
-        nonlocal update
         if not application.running:
             await application.initialize()
         await application.process_update(update)
 
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.ensure_future(process_update())
-        else:
-            loop.run_until_complete(process_update())
-    except RuntimeError:
-        asyncio.run(process_update())
+    def run_in_new_loop():
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+        new_loop.run_until_complete(process_update())
+        new_loop.close()
 
+    threading.Thread(target=run_in_new_loop).start()
     return "ok"
 
 
