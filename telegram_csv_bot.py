@@ -115,7 +115,7 @@ def telegram_webhook():
     update = Update.de_json(json_data, BOT)
 
     async def process():
-        nonlocal initialized
+        global initialized  # ✅ Use global instead
         if not initialized:
             await application.initialize()
             initialized = True
