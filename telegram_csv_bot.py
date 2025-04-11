@@ -2,6 +2,7 @@ import os
 import json
 import pandas as pd
 import re
+import asyncio  # ← this is critical for event loop management
 from datetime import datetime
 from flask import Flask, request
 from telegram import Update, InputFile, Bot
