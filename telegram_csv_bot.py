@@ -2,7 +2,7 @@ import os
 import json
 import pandas as pd
 import re
-import asyncio  # ← this is critical for event loop management
+import asyncio
 import threading
 from datetime import datetime
 from flask import Flask, request
@@ -116,10 +116,14 @@ def telegram_webhook():
         await application.process_update(update)
 
     def run_in_new_loop():
-        new_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(new_loop)
-        new_loop.run_until_complete(process_update())
-        new_loop.close()
+        try:
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            new_loop.run_until_complete(process_update())
+        except Exception as e:
+            print("[ERROR in thread]", e)
+        finally:
+            new_loop.close()
 
     threading.Thread(target=run_in_new_loop).start()
     return "ok"
