@@ -13,7 +13,7 @@ import uvicorn
 # --- Config ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 request_con = HTTPXRequest()
-app = Application.builder().token(BOT_TOKEN).request(request_con).build()
+application = Application.builder().token(BOT_TOKEN).request(request_con).build()
 
 # --- FastAPI Setup ---
 api = FastAPI()
@@ -93,9 +93,9 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
             os.remove(export_name)
 
 # --- Register Handlers ---
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^здравей$"), start))
-app.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^здравей$"), start))
+application.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
 
 # --- FastAPI Webhook Endpoint ---
 @api.post("/webhook/{token}")
@@ -104,8 +104,8 @@ async def telegram_webhook(request: Request, token: str):
         return PlainTextResponse("Invalid token", status_code=403)
 
     data = await request.json()
-    update = Update.de_json(data, app.bot)
-    await app.process_update(update)
+    update = Update.de_json(data, application.bot)
+    await application.process_update(update)
     return PlainTextResponse("ok")
 
 # --- Health Check ---
