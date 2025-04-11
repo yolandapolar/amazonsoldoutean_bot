@@ -3,3 +3,4 @@ pandas
 gunicorn
 flask[async]
 uvicorn
+gevent
