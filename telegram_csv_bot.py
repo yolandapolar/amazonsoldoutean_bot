@@ -108,16 +108,23 @@ application.add_handler(MessageHandler(filters.Document.MimeType("application/js
 
 # --- Webhook Endpoint ---
 @app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
-async def telegram_webhook():
-    global initialized
+def telegram_webhook():
     json_data = request.get_json(force=True)
     update = Update.de_json(json_data, BOT)
 
-    if not initialized:
-        await application.initialize()
-        initialized = True
+    async def process_update():
+        nonlocal update
+        if not application.running:
+            await application.initialize()
+        await application.process_update(update)
 
-    await application.process_update(update)
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    loop.create_task(process_update())  # schedule async handling safely
     return "ok"
 
 
