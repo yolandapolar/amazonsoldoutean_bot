@@ -93,6 +93,12 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
             os.remove(export_name)
 
 # --- Register Handlers ---
+@api.on_event("startup")
+async def startup_event():
+    await application.initialize()
+    await application.start()
+    application.updater = None
+
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^здравей$"), start))
 application.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
