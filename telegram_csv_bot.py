@@ -14,7 +14,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 BOT = Bot(token=BOT_TOKEN)
 
 # --- Telegram App ---
-request_con = HTTPXRequest(pool_limits=40)  # boost connection pool
+request_con = HTTPXRequest()
 application = Application.builder().token(BOT_TOKEN).request(request_con).build()
 
 # Flag to initialize the application only once
