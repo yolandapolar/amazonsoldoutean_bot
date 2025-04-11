@@ -2,7 +2,6 @@ import os
 import json
 import pandas as pd
 import re
-import asyncio
 from datetime import datetime
 from flask import Flask, request
 from telegram import Update, InputFile, Bot
@@ -109,19 +108,16 @@ application.add_handler(MessageHandler(filters.Document.MimeType("application/js
 
 # --- Webhook Endpoint ---
 @app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
-def telegram_webhook():
+async def telegram_webhook():
     global initialized
     json_data = request.get_json(force=True)
     update = Update.de_json(json_data, BOT)
 
-    async def process():
-        global initialized  # ✅ Use global instead
-        if not initialized:
-            await application.initialize()
-            initialized = True
-        await application.process_update(update)
+    if not initialized:
+        await application.initialize()
+        initialized = True
 
-    asyncio.run(process())
+    await application.process_update(update)
     return "ok"
 
 
