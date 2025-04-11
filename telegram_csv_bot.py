@@ -2,25 +2,21 @@ import os
 import json
 import pandas as pd
 import re
-import asyncio
-import threading
 from datetime import datetime
-from flask import Flask, request
-from telegram import Update, InputFile, Bot
+from telegram import Update, InputFile
 from telegram.ext import Application, MessageHandler, filters, ContextTypes, CommandHandler
 from telegram.request import HTTPXRequest
+from fastapi import FastAPI, Request
+from fastapi.responses import PlainTextResponse
+import uvicorn
 
 # --- Config ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-BOT = Bot(token=BOT_TOKEN)
-
-# --- Telegram App ---
 request_con = HTTPXRequest()
-application = Application.builder().token(BOT_TOKEN).request(request_con).build()
+app = Application.builder().token(BOT_TOKEN).request(request_con).build()
 
-# --- Flask App ---
-app = Flask(__name__)
-
+# --- FastAPI Setup ---
+api = FastAPI()
 
 # --- Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -64,7 +60,6 @@ def extract_data(messages):
     df.drop_duplicates(inplace=True)
     return df
 
-
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await update.message.document.get_file()
     filename = f"{file.file_id}.json"
@@ -97,44 +92,27 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if export_name and os.path.exists(export_name):
             os.remove(export_name)
 
-
 # --- Register Handlers ---
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^здравей$"), start))
-application.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^здравей$"), start))
+app.add_handler(MessageHandler(filters.Document.MimeType("application/json"), handle_file))
 
+# --- FastAPI Webhook Endpoint ---
+@api.post("/webhook/{token}")
+async def telegram_webhook(request: Request, token: str):
+    if token != BOT_TOKEN:
+        return PlainTextResponse("Invalid token", status_code=403)
 
-# --- Webhook Endpoint ---
-@app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
-def telegram_webhook():
-    json_data = request.get_json(force=True)
-    update = Update.de_json(json_data, BOT)
+    data = await request.json()
+    update = Update.de_json(data, app.bot)
+    await app.process_update(update)
+    return PlainTextResponse("ok")
 
-    async def process_update():
-        if not application.running:
-            await application.initialize()
-        await application.process_update(update)
+# --- Health Check ---
+@api.get("/")
+async def root():
+    return PlainTextResponse("Bot is running!")
 
-    def run_in_new_loop():
-        try:
-            new_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(new_loop)
-            new_loop.run_until_complete(process_update())
-        except Exception as e:
-            print("[ERROR in thread]", e)
-        finally:
-            new_loop.close()
-
-    threading.Thread(target=run_in_new_loop).start()
-    return "ok"
-
-
-# --- Health Check Endpoint ---
-@app.route("/")
-def index():
-    return "Bot is running!"
-
-
-# --- Start Flask App ---
+# --- Main Entry Point ---
 if __name__ == "__main__":
-    app.run(port=10000)
+    uvicorn.run("telegram_csv_bot:api", host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
