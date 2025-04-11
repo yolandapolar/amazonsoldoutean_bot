@@ -121,11 +121,13 @@ def telegram_webhook():
 
     try:
         loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(process_update())
+        else:
+            loop.run_until_complete(process_update())
     except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        asyncio.run(process_update())
 
-    loop.create_task(process_update())  # schedule async handling safely
     return "ok"
 
 
