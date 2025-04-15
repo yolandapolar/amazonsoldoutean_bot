@@ -50,7 +50,7 @@ def extract_data(messages):
         if skip_until_next_noverstock:
             continue
 
-        matches = re.findall(r"\b(\d{13})\b\s+(.*?)\s+\((L|M|U)\)", text)
+        matches = re.findall(r"\b(\d{13})\b\s+(.*?)(?:\s+\((L|M|U|SPF)\))?", text)
 
         date_full = msg.get("date")
         if date_full:
