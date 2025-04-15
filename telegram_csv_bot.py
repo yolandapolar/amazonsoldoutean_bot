@@ -26,6 +26,7 @@ def extract_data(messages):
     rows = []
     last_date = ""
     last_hour = ""
+    skip_until_next_noverstock = False
 
     for msg in messages:
         if not isinstance(msg, dict) or "text" not in msg:
@@ -38,6 +39,17 @@ def extract_data(messages):
             continue
 
         text = text.replace("\n", " ")
+
+        if "Pulheim Transfer" in text:
+            skip_until_next_noverstock = True
+            continue
+
+        if "Noverstock" in text:
+            skip_until_next_noverstock = False
+
+        if skip_until_next_noverstock:
+            continue
+
         matches = re.findall(r"\b(\d{13})\b\s+(.*?)\s+\((L|M|U)\)", text)
 
         date_full = msg.get("date")
