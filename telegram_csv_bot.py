@@ -50,7 +50,12 @@ def extract_data(messages):
         if skip_until_next_noverstock:
             continue
 
-        matches = re.findall(r"\b(\d{13})\b\s+(.*?)(?:\s+\((L|M|U|SPF)\))?", text)
+        # First, try to match with optional suffix (L|M|U|SPF)
+        matches = re.findall(r"\b(\d{13})\b\s+(.*?)\s+\((L|M|U|SPF)\)", text)
+
+        # If no matches, fallback to EAN + name only
+        if not matches:
+            matches = re.findall(r"\b(\d{13})\b\s+([^\(\n]+)", text)
 
         date_full = msg.get("date")
         if date_full:
@@ -58,9 +63,14 @@ def extract_data(messages):
             last_date = dt.strftime("%d %B %Y")
             last_hour = dt.strftime("%H:%M")
 
-        for ean, name, _ in matches:
+        for match in matches:
+            if isinstance(match, tuple):
+                ean, name = match[0], match[1]
+            else:
+                ean, name = match
+
             if last_date and last_hour:
-                cleaned_name = name.strip().replace("\u200b", "")  # remove zero-width spaces if any
+                cleaned_name = name.strip().replace("\u200b", "")
                 rows.append({
                     "Date": last_date,
                     "Hour": last_hour,
