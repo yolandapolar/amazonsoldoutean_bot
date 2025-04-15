@@ -38,7 +38,7 @@ def extract_data(messages):
         elif not isinstance(text, str):
             continue
 
-        text = text.replace("\n", " ")
+        text = text.replace("\n", " ").strip()
 
         if "Pulheim Transfer" in text:
             skip_until_next_noverstock = True
@@ -60,11 +60,12 @@ def extract_data(messages):
 
         for ean, name, _ in matches:
             if last_date and last_hour:
+                cleaned_name = name.strip().replace("\u200b", "")  # remove zero-width spaces if any
                 rows.append({
                     "Date": last_date,
                     "Hour": last_hour,
                     "EAN": ean,
-                    "Name": name.strip(),
+                    "Name": cleaned_name,
                     "Forecast URL": f"https://mytrendylady.com/administration/forecast/show/{ean}"
                 })
 
