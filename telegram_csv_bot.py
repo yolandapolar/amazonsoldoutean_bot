@@ -26,7 +26,6 @@ def extract_data(messages):
     rows = []
     last_date = ""
     last_hour = ""
-    skip_until_next_noverstock = False
 
     for msg in messages:
         if not isinstance(msg, dict) or "text" not in msg:
@@ -39,16 +38,6 @@ def extract_data(messages):
             continue
 
         text = text.replace("\n", " ").strip()
-
-        if "Pulheim Transfer" in text:
-            skip_until_next_noverstock = True
-            continue
-
-        if "Noverstock" in text:
-            skip_until_next_noverstock = False
-
-        if skip_until_next_noverstock:
-            continue
 
         # First, try to match with optional suffix (L|M|U|SPF)
         matches = re.findall(r"\b(\d{13})\b\s+(.*?)\s+\((L|M|U|SPF)\)", text)
@@ -70,7 +59,7 @@ def extract_data(messages):
                 ean, name = match
 
             if last_date and last_hour:
-                cleaned_name = name.strip().replace("\u200b", "")
+                cleaned_name = name.strip().replace("\u200b", "").replace("\u200c", "").replace("\u202c", "")
                 rows.append({
                     "Date": last_date,
                     "Hour": last_hour,
